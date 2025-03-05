@@ -1,43 +1,48 @@
 version: 2.1
- executors:
-  node:
+ 
+executors:
+  python:
     docker:
-      - image: cimg/node:18.17
+      - image: cimg/python:3.10  # Usa una imagen con Python preinstalado
     working_directory: ~/project
- jobs:
+ 
+jobs:
   install-dependencies:
-    executor: node
+    executor: python
     steps:
       - checkout
       - run:
           name: Install AWS CDK and dependencies
           command: |
-            npm install -g aws-cdk
-            npm install
+            python -m venv .venv
+            source .venv/bin/activate
+            pip install -r requirements.txt
+            pip install aws-cdk-lib constructs
       - persist_to_workspace:
           root: .
           paths:
-            - node_modules
-   deploy:
-    executor: node
+            - .venv  # Guarda el entorno virtual
+ 
+  deploy:
+    executor: python
     steps:
       - checkout
       - attach_workspace:
           at: .
       - run:
-          name: Authenticate AWS
+          name: Configure AWS credentials
           command: |
-            echo "Configuring AWS credentials"
             aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
             aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
             aws configure set region us-east-1
       - run:
-          name: Synthesize CloudFormation Template
-          command: cdk synth
-      - run:
-          name: Deploy AWS CDK Stack
-          command: cdk deploy --require-approval never
- workflows:
+          name: Deploy Infrastructure with CDK
+          command: |
+            source .venv/bin/activate
+            cdk synth
+            cdk deploy --require-approval never
+ 
+workflows:
   version: 2
   deploy_infra:
     jobs:
