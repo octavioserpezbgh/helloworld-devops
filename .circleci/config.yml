@@ -1,17 +1,45 @@
 version: 2.1
-jobs:
-  deploy:
+ executors:
+  node:
     docker:
-      - image: cimg/python:3.9
+      - image: cimg/node:18.17
+    working_directory: ~/project
+ jobs:
+  install-dependencies:
+    executor: node
     steps:
       - checkout
       - run:
-          name: Instalar dependencias
-          command: pip install -r cdk/requirements.txt
+          name: Install AWS CDK and dependencies
+          command: |
+            npm install -g aws-cdk
+            npm install
+      - persist_to_workspace:
+          root: .
+          paths:
+            - node_modules
+   deploy:
+    executor: node
+    steps:
+      - checkout
+      - attach_workspace:
+          at: .
       - run:
-          name: Desplegar a AWS
+          name: Authenticate AWS
+          command: |
+            echo "Configuring AWS credentials"
+            aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+            aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+            aws configure set region us-east-1
+      - run:
+          name: Synthesize CloudFormation Template
+          command: cdk synth
+      - run:
+          name: Deploy AWS CDK Stack
           command: cdk deploy --require-approval never
-workflows:
-  deploy:
+ workflows:
+  version: 2
+  deploy_infra:
     jobs:
+      - install-dependencies
       - deploy
